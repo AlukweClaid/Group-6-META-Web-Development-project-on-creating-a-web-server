@@ -1,3 +1,5 @@
+import os
+from http.server import BaseHTTPRequestHandler
 '''
 Simple HTTP server to list directory contents and serve files.'''
 class DirectoryHandler(BaseHTTPRequestHandler):
