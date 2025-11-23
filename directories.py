@@ -1,7 +1,15 @@
+class ServerException(Exception):
+    pass
 import os
 from http.server import BaseHTTPRequestHandler
 '''
 Simple HTTP server to list directory contents and serve files.'''
+
+import os
+import sys
+import subprocess
+from http.server import BaseHTTPRequestHandler
+
 class DirectoryHandler(BaseHTTPRequestHandler):
 
     # --- CASE HANDLERS ---
@@ -69,10 +77,28 @@ class DirectoryHandler(BaseHTTPRequestHandler):
     ]
 
 
+
     # --- REQUEST HANDLING ---
     def do_GET(self):
+        self.handle_request()
+
+    def do_POST(self):
+        self.handle_request()
+
+    def do_PUT(self):
+        self.handle_request()
+
+    def do_DELETE(self):
+        self.handle_request()
+
+    def handle_request(self):
         try:
             self.full_path = os.getcwd() + self.path
+
+            # Check for CGI (simple: .py files)
+            if self.full_path.endswith('.py') and os.path.isfile(self.full_path):
+                self.run_cgi(self.full_path)
+                return
 
             # Use case handlers
             for case in self.Cases:
@@ -83,6 +109,43 @@ class DirectoryHandler(BaseHTTPRequestHandler):
 
         except Exception as msg:
             self.handle_error(msg)
+
+    def run_cgi(self, script_path):
+        """Run a Python script as CGI."""
+        try:
+            # Set up environment variables for CGI
+            env = os.environ.copy()
+            env['REQUEST_METHOD'] = self.command
+            env['PATH_INFO'] = self.path
+            env['QUERY_STRING'] = self.path.split('?', 1)[1] if '?' in self.path else ''
+            env['CONTENT_TYPE'] = self.headers.get('Content-Type', '')
+            env['CONTENT_LENGTH'] = self.headers.get('Content-Length', '')
+
+            # Read POST data if present
+            post_data = None
+            if self.command == 'POST':
+                content_length = int(self.headers.get('Content-Length', 0))
+                post_data = self.rfile.read(content_length) if content_length > 0 else b''
+
+            # Run the script
+            proc = subprocess.Popen(
+                [sys.executable, script_path],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env
+            )
+            stdout, stderr = proc.communicate(input=post_data)
+
+            # Output
+            self.send_response(200)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+            self.wfile.write(stdout)
+            if stderr:
+                self.wfile.write(b"<pre>" + stderr + b"</pre>")
+        except Exception as e:
+            self.handle_error(f"CGI error: {e}")
 
 
     # --- FILE HANDLING ---
