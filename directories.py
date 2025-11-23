@@ -1,5 +1,7 @@
 class ServerException(Exception):
     pass
+import os
+from http.server import BaseHTTPRequestHandler
 '''
 Simple HTTP server to list directory contents and serve files.'''
 
